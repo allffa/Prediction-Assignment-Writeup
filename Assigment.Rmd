@@ -1,0 +1,112 @@
+---
+title: "Untitled"
+author: "Anastasiia Razvaliaieva"
+date: "10/29/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Abou the assigment
+
+TThe goal this work is to predict the manner in which they did the exercise. We should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+We need to apply machine learning algorithm to the 20 test cases available in the test data above and submit our predictions in appropriate format.
+
+
+### Loading the Data
+
+```{r}
+trainingUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(trainingUrl, destfile = "/Users/anastasiiaf/Desktop/R_Study/Ass4/training.csv", method = "curl")
+download.file(testingUrl, destfile = "/Users/anastasiiaf/Desktop/R_Study/Ass4/testing.csv", method = "curl")
+training <- read.csv("/Users/anastasiiaf/Desktop/R_Study/Ass4/training.csv", na.strings = c("NA", "#DIV/0!"))
+testing <- read.csv("/Users/anastasiiaf/Desktop/R_Study/Ass4/testing.csv", na.strings = c("NA", "#DIV/0!"))
+```
+
+### Looking at the data
+
+```{r}
+library(dplyr)
+View(training)
+View(testing)
+```
+
+Training set has 19622 observations of 160 variables. In the testing set there are 20 observations of 160 variables. 
+
+### Cleaning data
+
+```{r}
+# Remove variables in the training set with lots of NAs 
+goodCol <- colSums(is.na(training)) < 1900
+myTraining <- training[ , goodCol][ , ]
+# Remove such columns in the test set
+myTesting <- testing[ , goodCol][ , ]
+# Remove the first seven columns in both sets
+myTraining <- myTraining[ , -(1:7)]
+myTesting <- myTesting[ , -(1:7)] 
+View(myTraining)
+View(myTesting)
+```
+
+Finaly we have 19622 observations of 53 variables and 20 observations of 53 variables.
+
+### Subsetting the training data
+
+In building our model, for a cross validation objective, we subset our training data to a real training set and a test set.
+
+```{r}
+library(caret)
+library(lattice)
+library(ggplot2)
+set.seed(4848)
+inTrain <- createDataPartition(y = myTraining$classe, p = 0.75, list = FALSE)
+inTraining <- myTraining[inTrain, ]
+inTesting <- myTraining[-inTrain, ]
+```
+
+### Building the model
+
+Tree methods were tried: gradient boosting with "gbm", random forests with "rf" and random forests using the randomForest() functiom. The first two revealed themselves to be painfully slow, so they were disregarded and randomForest was choosed to training, tunning and testing.
+
+```{r}
+# Train with randomForest
+library(randomForest)
+set.seed(555)
+rfGrid <-  expand.grid(interaction.depth = c(1, 5, 9),
+                        n.trees = (1:30)*50,
+                        shrinkage = 0.1)
+
+modelFit <- randomForest(as.factor(classe)~., data = inTraining, tuneGrid = rfGrid) 
+print(modelFit)
+plot(modelFit)
+```
+
+This model looked promissing, with very low classification errors in all classes, and a Out of the Bag
+(OOB) error estimate that descends swiftly to near 0, as we can see in the plot above.
+
+### Cross validation
+ 
+```{r}
+predictions <- predict(modelFit, newdata = inTesting)
+confusionMatrix(as.factor(predictions), as.factor(inTesting$classe))
+```
+
+The model passed the test, with a global accuracy of 0.9988, a kappa of 0.9985 and with near perfect
+sensivity and specificity for all classes.
+
+### Final validation with results for submission
+
+```{r}
+# Test validation sample
+answers <- predict(modelFit, newdata = myTesting, type = "response")
+print(answers)
+```
+
+### In the end
+
+All the 20 answers were validated as correct at the PML project submission page. 
